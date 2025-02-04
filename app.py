@@ -1,7 +1,9 @@
 import yfinance as yf
 import pandas as pd
 import streamlit as st
+import matplotlib.pyplot as plt
 
+# Function to fetch stock data from Yahoo Finance
 def get_stock_data(ticker):
     stock = yf.Ticker(ticker)
     hist = stock.history(period='1y')
@@ -35,6 +37,7 @@ def get_stock_data(ticker):
     }
     return hist, financials, dividend_history
 
+# Function to analyze stock valuation
 def valuation_analysis(financials, stock_choice):
     analysis = []
     
@@ -89,6 +92,7 @@ def valuation_analysis(financials, stock_choice):
     
     return analysis
 
+# Function to predict valuation shifts
 def predict_valuation_shift(financials, stock_choice):
     prediction = []
     
@@ -106,12 +110,13 @@ def predict_valuation_shift(financials, stock_choice):
     
     return prediction
 
-# Streamlit App
+# Streamlit Dashboard App
 def main():
-    st.title("Stock Valuation & Analysis App")
+    st.title("Stock Valuation Dashboard")
     
-    # User Input for Stock Symbol
-    stock = st.text_input("Enter the stock symbol (e.g., TCS.NS, ITC.NS):").strip().upper()
+    # Sidebar for stock input
+    st.sidebar.header("Stock Input")
+    stock = st.sidebar.text_input("Enter the stock symbol (e.g., TCS.NS, ITC.NS):").strip().upper()
     
     if stock:
         if '.' not in stock:
@@ -119,20 +124,26 @@ def main():
         else:
             hist, financials, dividend_history = get_stock_data(stock)
             
-            st.write(f"### Financial Metrics for {stock}")
-            st.dataframe(pd.DataFrame(financials.items(), columns=['Metric', 'Value']))
+            # Create the dashboard layout
+            col1, col2 = st.columns(2)
             
-            st.write(f"### Valuation Analysis for {stock}")
+            with col1:
+                st.header(f"Financial Metrics for {stock}")
+                st.dataframe(pd.DataFrame(financials.items(), columns=['Metric', 'Value']))
+                
+            with col2:
+                st.header("Historical Stock Data")
+                st.line_chart(hist['Close'])
+                
+            # Valuation Analysis
+            st.header(f"Valuation Analysis for {stock}")
             for line in valuation_analysis(financials, stock):
                 st.write(line)
             
-            st.write(f"### Predicting Valuation Shift (Overvalued -> Undervalued) for {stock}")
+            # Predicting Valuation Shift
+            st.header(f"Predicting Valuation Shift for {stock}")
             for line in predict_valuation_shift(financials, stock):
                 st.write(line)
-            
-            # Optional: Show historical data plot
-            st.write("### Historical Stock Data (1 Year)")
-            st.line_chart(hist['Close'])
 
 if __name__ == "__main__":
     main()
