@@ -1,7 +1,7 @@
 import yfinance as yf
 import pandas as pd
 import streamlit as st
-import matplotlib.pyplot as plt
+import numpy as np
 
 # Function to fetch stock data from Yahoo Finance
 def get_stock_data(ticker):
@@ -25,94 +25,74 @@ def get_stock_data(ticker):
         'Beta': info.get('beta', 'N/A'),
         'Earnings Surprise': info.get('earningsQuarterlyGrowth', 'N/A'),
         'Analyst Rating': info.get('recommendationKey', 'N/A'),
-        'Quick Ratio': info.get('quickRatio', 'N/A'),
-        'Current Ratio': info.get('currentRatio', 'N/A'),
-        'EBITDA': info.get('ebitda', 'N/A'),
-        'Free Cash Flow': info.get('freeCashflow', 'N/A'),
-        'Revenue Growth': info.get('revenueGrowth', 'N/A'),
-        'Gross Margins': info.get('grossMargins', 'N/A'),
-        'EBITDA Margins': info.get('ebitdaMargins', 'N/A'),
-        'Operating Margins': info.get('operatingMargins', 'N/A'),
-        'Trailing PEG Ratio': info.get('trailingPegRatio', 'N/A'),
     }
-    return hist, financials, dividend_history
+    
+    return hist, financials, dividend_history, stock
 
-# Function to analyze stock valuation
-def valuation_analysis(financials, stock_choice):
+# Function to calculate historical averages for P/E, P/B, and EV/EBITDA
+def calculate_historical_averages(stock, hist):
+    # Get historical data for ratios (we need them for each day)
+    pe_history = []
+    pb_history = []
+    ev_ebitda_history = []
+    
+    for date in hist.index:
+        # Fetch data for each date
+        info = stock.history(period='1d', start=date, end=date)
+        pe = info['P/E Ratio'][0] if 'P/E Ratio' in info else np.nan
+        pb = info['P/B Ratio'][0] if 'P/B Ratio' in info else np.nan
+        ev_ebitda = info['EV/EBITDA'][0] if 'EV/EBITDA' in info else np.nan
+        
+        pe_history.append(pe)
+        pb_history.append(pb)
+        ev_ebitda_history.append(ev_ebitda)
+    
+    # Calculate historical averages for the ratios
+    pe_avg = np.nanmean(pe_history)
+    pb_avg = np.nanmean(pb_history)
+    ev_ebitda_avg = np.nanmean(ev_ebitda_history)
+    
+    return pe_avg, pb_avg, ev_ebitda_avg
+
+# Function to analyze valuation comparison
+def valuation_comparison(financials, hist_averages, stock_choice):
     analysis = []
     
-    # P/E Ratio Analysis
-    pe = financials['P/E Ratio']
-    if pe != 'N/A' and pe < 20:
-        analysis.append(f"{stock_choice} appears undervalued based on P/E ratio ({pe}).")
-    else:
-        analysis.append(f"{stock_choice} might be overvalued based on P/E ratio ({pe}).")
+    # Compare P/E Ratio
+    pe_current = financials['P/E Ratio']
+    pe_avg = hist_averages[0]
     
-    # P/B Ratio Analysis
-    pb = financials['P/B Ratio']
-    if pb != 'N/A' and pb < 3:
-        analysis.append(f"{stock_choice} appears fairly valued based on P/B ratio ({pb}).")
-    else:
-        analysis.append(f"{stock_choice} might be overvalued based on P/B ratio ({pb}).")
+    if pe_current != 'N/A' and pe_avg != 'N/A':
+        if pe_current < pe_avg:
+            analysis.append(f"{stock_choice} is currently undervalued compared to its historical average P/E ratio ({pe_avg}).")
+        else:
+            analysis.append(f"{stock_choice} is currently overvalued compared to its historical average P/E ratio ({pe_avg}).")
     
-    # EV/EBITDA Analysis
-    ev_ebitda = financials['EV/EBITDA']
-    if ev_ebitda != 'N/A' and ev_ebitda < 10:
-        analysis.append(f"{stock_choice} has a reasonable valuation based on EV/EBITDA ({ev_ebitda}).")
-    else:
-        analysis.append(f"{stock_choice} might be expensive based on EV/EBITDA ({ev_ebitda}).")
+    # Compare P/B Ratio
+    pb_current = financials['P/B Ratio']
+    pb_avg = hist_averages[1]
     
-    # Debt-to-Equity Analysis
-    debt_to_equity = financials['Debt-to-Equity']
-    if debt_to_equity != 'N/A' and debt_to_equity < 1.0:
-        analysis.append(f"{stock_choice} has a healthy debt-to-equity ratio ({debt_to_equity}).")
-    else:
-        analysis.append(f"{stock_choice} has a high debt-to-equity ratio ({debt_to_equity}), indicating higher financial risk.")
+    if pb_current != 'N/A' and pb_avg != 'N/A':
+        if pb_current < pb_avg:
+            analysis.append(f"{stock_choice} is currently undervalued compared to its historical average P/B ratio ({pb_avg}).")
+        else:
+            analysis.append(f"{stock_choice} is currently overvalued compared to its historical average P/B ratio ({pb_avg}).")
     
-    # Quick Ratio Analysis
-    quick_ratio = financials['Quick Ratio']
-    if quick_ratio != 'N/A' and quick_ratio >= 1:
-        analysis.append(f"{stock_choice} has a good quick ratio ({quick_ratio}), indicating sufficient liquidity.")
-    else:
-        analysis.append(f"{stock_choice} might have liquidity issues with a quick ratio of ({quick_ratio}).")
+    # Compare EV/EBITDA Ratio
+    ev_ebitda_current = financials['EV/EBITDA']
+    ev_ebitda_avg = hist_averages[2]
     
-    # Current Ratio Analysis
-    current_ratio = financials['Current Ratio']
-    if current_ratio != 'N/A' and current_ratio >= 1.5:
-        analysis.append(f"{stock_choice} has a strong current ratio ({current_ratio}), indicating good short-term financial health.")
-    else:
-        analysis.append(f"{stock_choice} has a low current ratio ({current_ratio}), which might indicate liquidity concerns.")
-    
-    # Free Cash Flow Analysis
-    free_cash_flow = financials['Free Cash Flow']
-    if free_cash_flow != 'N/A' and free_cash_flow > 0:
-        analysis.append(f"{stock_choice} has positive free cash flow, which is a good sign for financial health.")
-    else:
-        analysis.append(f"{stock_choice} has negative or no free cash flow, which might be a red flag.")
+    if ev_ebitda_current != 'N/A' and ev_ebitda_avg != 'N/A':
+        if ev_ebitda_current < ev_ebitda_avg:
+            analysis.append(f"{stock_choice} is currently undervalued compared to its historical average EV/EBITDA ratio ({ev_ebitda_avg}).")
+        else:
+            analysis.append(f"{stock_choice} is currently overvalued compared to its historical average EV/EBITDA ratio ({ev_ebitda_avg}).")
     
     return analysis
 
-# Function to predict valuation shifts
-def predict_valuation_shift(financials, stock_choice):
-    prediction = []
-    
-    # Prediction for Overvalued stock
-    if financials['P/E Ratio'] != 'N/A' and financials['P/E Ratio'] > 25:
-        prediction.append(f"{stock_choice} is currently overvalued based on its P/E ratio.")
-        
-        if financials['Debt-to-Equity'] != 'N/A' and financials['Debt-to-Equity'] > 1.0:
-            prediction.append(f"{stock_choice} has a high debt-to-equity ratio, indicating higher risk in the future.")
-        
-        if financials['P/S Ratio'] != 'N/A' and financials['P/S Ratio'] > 5:
-            prediction.append(f"{stock_choice} has a high P/S ratio, further indicating overvaluation.")
-        
-        prediction.append(f"{stock_choice} might become undervalued if its valuation metrics return to historical averages.")
-    
-    return prediction
-
 # Streamlit Dashboard App
 def main():
-    st.title("Stock Valuation Dashboard")
+    st.title("Stock Valuation Dashboard with Historical Averages")
     
     # Sidebar for stock input
     st.sidebar.header("Stock Input")
@@ -122,7 +102,10 @@ def main():
         if '.' not in stock:
             st.error("Invalid stock symbol format. Please include the exchange suffix (e.g., TCS.NS).")
         else:
-            hist, financials, dividend_history = get_stock_data(stock)
+            hist, financials, dividend_history, stock_obj = get_stock_data(stock)
+            
+            # Calculate historical averages for valuation ratios
+            hist_averages = calculate_historical_averages(stock_obj, hist)
             
             # Create the dashboard layout
             col1, col2 = st.columns(2)
@@ -135,14 +118,9 @@ def main():
                 st.header("Historical Stock Data")
                 st.line_chart(hist['Close'])
                 
-            # Valuation Analysis
-            st.header(f"Valuation Analysis for {stock}")
-            for line in valuation_analysis(financials, stock):
-                st.write(line)
-            
-            # Predicting Valuation Shift
-            st.header(f"Predicting Valuation Shift for {stock}")
-            for line in predict_valuation_shift(financials, stock):
+            # Valuation Comparison
+            st.header(f"Valuation Comparison for {stock}")
+            for line in valuation_comparison(financials, hist_averages, stock):
                 st.write(line)
 
 if __name__ == "__main__":
